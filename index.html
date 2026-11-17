@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mood Mate — gentle support, one page at a time</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --page:#faf6f2; --card:#ffffff; --ink:#3a2f2b; --ink-soft:#6f625b;
+    --accent:#c4602f; --accent-ink:#ffffff; --soft:#fde8dc; --line:#eadcd2;
+    --focus:#1a1a1a; --danger-bg:#fff4f0; --danger-line:#d9572b;
+    --radius:20px;
+  }
+  /* Mood only tints accents — the page itself stays steady */
+  body[data-mood="happy"]   { --accent:#8a6000; --soft:#fff1c2; --line:#f0e2b0; }
+  body[data-mood="calm"]    { --accent:#2b7363; --soft:#d6eee3; --line:#cfe4d9; }
+  body[data-mood="sad"]     { --accent:#3a679c; --soft:#dbe8f6; --line:#cfdfef; }
+  body[data-mood="stressed"]{ --accent:#874a7f; --soft:#f1dcec; --line:#e2cddd; }
+  body[data-mood="angry"]   { --accent:#a83535; --soft:#f6d8d8; --line:#ecd3d3; }
+  body[data-mood="tired"]   { --accent:#56519a; --soft:#e2dff1; --line:#dcd8ec; }
+
+  /* High contrast mode */
+  body[data-hc="on"]{
+    --page:#ffffff; --card:#ffffff; --ink:#000; --ink-soft:#222;
+    --soft:#f0f0f0; --line:#000; --accent:#0050a8; --accent-ink:#fff; --focus:#000;
+  }
+  body[data-hc="on"] section,
+  body[data-hc="on"] .mood-btn,
+  body[data-hc="on"] .chip,
+  body[data-hc="on"] .ex-card{ border:3px solid #000; }
+  body[data-hc="on"] .mood-btn[aria-pressed="true"],
+  body[data-hc="on"] .chip[aria-pressed="true"]{ background:#000; color:#fff; }
+  body[data-hc="on"] .mood-emoji{ filter:grayscale(1) contrast(1.6); }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0; font-family:"Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
+    background:var(--page); color:var(--ink); line-height:1.6; font-size:17px;
+  }
+  .top-glow{
+    position:absolute; inset:0 0 auto 0; height:260px; z-index:-1; pointer-events:none;
+    background:linear-gradient(180deg, var(--soft), transparent);
+    transition:background .8s ease;
+  }
+
+  /* Header */
+  header{ max-width:820px; margin:0 auto; padding:28px 20px 6px; }
+  .head-row{ display:flex; align-items:center; gap:12px; }
+  header h1{ margin:0; font-size:1.9rem; font-weight:800; letter-spacing:.2px; flex:1; }
+  header p{ margin:6px 0 0; color:var(--ink-soft); max-width:60ch; }
+  .hc-toggle{
+    display:inline-flex; align-items:center; gap:8px; flex-shrink:0;
+    border:2px solid var(--ink); background:var(--card); color:var(--ink);
+    padding:7px 14px; border-radius:999px; font:inherit; font-size:.9rem; font-weight:700; cursor:pointer;
+  }
+  .hc-toggle[aria-pressed="true"]{ background:var(--ink); color:var(--card); }
+  .hc-icon{ font-size:1.1rem; line-height:1; }
+  @media (max-width:560px){
+    .hc-text{ display:none; }
+    .hc-toggle{ width:42px; height:42px; padding:0; justify-content:center; }
+    header h1{ font-size:1.6rem; }
+  }
+
+  /* Progress */
+  .progress{ max-width:820px; margin:14px auto 0; padding:0 20px; display:flex; gap:8px; }
+  .progress span{ flex:1; height:6px; border-radius:99px; background:var(--line); transition:background .4s; }
+  .progress span.done{ background:var(--accent); }
+
+  main{ max-width:820px; margin:0 auto; padding:18px 20px 40px; display:flex; flex-direction:column; gap:22px; }
+  section{
+    background:var(--card); border:1px solid var(--line); border-radius:var(--radius);
+    padding:24px; box-shadow:0 6px 20px rgba(60,40,30,.06);
+  }
+  section[hidden]{ display:none; }
+  section.reveal{ animation:rise .5s ease both; }
+  @keyframes rise{ from{opacity:0; transform:translateY(12px)} to{opacity:1; transform:none} }
+
+  .step{ display:inline-block; background:var(--soft); color:var(--ink); border-radius:999px;
+         padding:2px 12px; font-size:.78rem; font-weight:800; letter-spacing:.4px; margin-bottom:6px; }
+  section h2{ margin:2px 0 4px; font-size:1.35rem; font-weight:800; }
+  .note{ color:var(--ink-soft); font-size:.95rem; margin:0 0 16px; }
+
+  /* Focus: distinct from "selected" */
+  button:focus-visible, textarea:focus-visible{
+    outline:3px dashed var(--focus); outline-offset:3px;
+  }
+
+  /* Moods */
+  .mood-row{ display:grid; grid-template-columns:repeat(auto-fill, minmax(118px,1fr)); gap:10px; }
+  .mood-btn{
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+    border:2px solid var(--line); background:var(--card); color:var(--ink);
+    border-radius:16px; padding:12px 8px; cursor:pointer; font:inherit; font-weight:700;
+    transition:transform .15s, background .2s, border-color .2s;
+  }
+  .mood-emoji{ font-size:1.8rem; line-height:1.2; }
+  .mood-btn:hover{ transform:translateY(-2px); border-color:var(--accent); }
+  .mood-btn[aria-pressed="true"]{ background:var(--soft); border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+  .current-mood{ margin-top:16px; padding:12px 16px; border-radius:12px; background:var(--soft); font-weight:600; }
+  .current-mood:empty{ display:none; }
+
+  /* Problems */
+  .chip-row{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; }
+  .chip{
+    border:2px solid var(--line); background:var(--card); color:var(--ink);
+    border-radius:999px; padding:8px 16px; cursor:pointer; font:inherit; font-size:.95rem; font-weight:700;
+    transition:background .2s, border-color .2s;
+  }
+  .chip:hover{ border-color:var(--accent); }
+  .chip[aria-pressed="true"]{ background:var(--accent); border-color:var(--accent); color:var(--accent-ink); }
+  label.lbl{ font-weight:700; display:block; margin-bottom:6px; }
+  textarea{
+    width:100%; min-height:100px; border:2px solid var(--line); border-radius:14px;
+    padding:12px 14px; font:inherit; color:var(--ink); background:var(--page); resize:vertical;
+  }
+  textarea:focus{ border-color:var(--accent); }
+
+  /* Support */
+  .crisis{
+    border:2px solid var(--danger-line); background:var(--danger-bg); border-radius:14px;
+    padding:16px 18px; margin-bottom:16px;
+  }
+  .crisis h3{ margin:0 0 6px; font-size:1.05rem; }
+  .crisis p{ margin:0 0 8px; }
+  .crisis ul{ margin:0; padding-left:20px; }
+  .crisis a{ color:inherit; font-weight:800; white-space:nowrap; }
+  .reply{
+    background:var(--soft); border-left:6px solid var(--accent); border-radius:14px;
+    padding:20px 22px; font-size:1.15rem; line-height:1.7;
+  }
+  .ex-grid{ display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:18px; margin-top:20px; }
+  .ex-card{ border:2px solid var(--line); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:10px; }
+  .ex-card h3{ margin:0; font-size:1.05rem; }
+  .ex-card p{ margin:0; color:var(--ink-soft); font-size:.94rem; }
+  .pattern{ font-weight:800; color:var(--accent); letter-spacing:1px; }
+  .breath-wrap{ height:180px; display:flex; align-items:center; justify-content:center; }
+  .breath-circle{
+    width:110px; height:110px; border-radius:50%;
+    background:var(--accent); color:var(--accent-ink);
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    font-weight:800; font-size:.95rem; padding:8px;
+    transition:transform 4s ease-in-out, opacity 4s ease-in-out;
+  }
+  .breath-circle.inhale{ transform:scale(1.45); }
+  .breath-count{ text-align:center; font-size:.9rem; color:var(--ink-soft); min-height:1.4em; margin:0; }
+  .btn{
+    align-self:center; border:none; background:var(--accent); color:var(--accent-ink);
+    padding:10px 22px; border-radius:999px; font:inherit; font-weight:800; cursor:pointer;
+  }
+  .btn.ghost{ background:transparent; color:var(--accent); border:2px solid var(--accent); }
+  .ground-text{ color:var(--ink) !important; font-size:1rem !important; flex:1; }
+
+  /* Help bar */
+  .help-bar{
+    background:var(--card); border:1px dashed var(--line); border-radius:14px;
+    padding:14px 18px; font-size:.92rem; color:var(--ink-soft);
+  }
+  .help-bar strong{ color:var(--ink); }
+  .help-bar a{ color:var(--ink); font-weight:700; white-space:nowrap; }
+
+  /* AI settings */
+  .ai-panel{
+    max-width:820px; margin:14px auto 0; padding:0 20px;
+  }
+  .ai-panel details{
+    background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px 16px;
+  }
+  .ai-panel summary{ cursor:pointer; font-weight:800; list-style:none; display:flex; align-items:center; gap:8px; }
+  .ai-panel summary::-webkit-details-marker{ display:none; }
+  .ai-badge{ font-size:.75rem; font-weight:800; padding:2px 10px; border-radius:99px; background:var(--line); color:var(--ink); }
+  .ai-badge.on{ background:var(--accent); color:var(--accent-ink); }
+  .ai-body{ margin-top:12px; display:flex; flex-direction:column; gap:10px; font-size:.95rem; }
+  .ai-body p{ margin:0; color:var(--ink-soft); }
+  .ai-row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .ai-row input[type=password], .ai-row select{
+    flex:1 1 240px; border:2px solid var(--line); border-radius:10px; padding:8px 12px;
+    font:inherit; color:var(--ink); background:var(--page);
+  }
+  .ai-row input:focus-visible, .ai-row select:focus-visible{ outline:3px dashed var(--focus); outline-offset:2px; }
+  .ai-row .btn{ align-self:auto; padding:8px 18px; }
+  .ai-status{ font-weight:700; color:var(--ink); min-height:1.4em; }
+  .reply.loading{ opacity:.6; }
+  .reply-meta{ margin:8px 0 0; font-size:.8rem; color:var(--ink-soft); text-align:right; }
+
+  footer{ max-width:820px; margin:0 auto; padding:0 20px 40px; color:var(--ink-soft); font-size:.85rem; }
+
+  .sr-only{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
+
+  @media (prefers-reduced-motion: reduce){
+    html{ scroll-behavior:auto; }
+    *, *::before, *::after{ animation:none !important; }
+    .mood-btn:hover{ transform:none; }
+    .top-glow{ transition:none; }
+    .breath-circle{ transition:opacity 4s ease-in-out; }
+    .breath-circle.inhale{ transform:none; opacity:1; }
+    .breath-circle:not(.inhale){ opacity:.55; }
+  }
+</style>
+</head>
+<body data-mood="" data-hc="off">
+<div class="top-glow" aria-hidden="true"></div>
+
+<header>
+  <div class="head-row">
+    <h1>🌤️ Mood Mate</h1>
+    <button class="hc-toggle" id="hcToggle" aria-pressed="false" aria-label="High contrast mode">
+      <span class="hc-icon" aria-hidden="true">👁</span><span class="hc-text">High contrast</span>
+    </button>
+  </div>
+  <p>A gentle check-in space. Pick a mood, share what's bothering you, and try a small calming step. <span id="headPrivacy">Nothing is saved — this stays on your screen.</span></p>
+</header>
+
+<div class="ai-panel">
+  <details id="aiDetails">
+    <summary>✨ Smarter replies <span class="ai-badge" id="aiBadge">Off</span></summary>
+    <div class="ai-body">
+      <p>Optional. Add a Google Gemini API key and replies will be written by AI (Gemma 4 by default). When it's on, what you pick and write is sent to Google to create the reply. When it's off, everything stays on this page.</p>
+      <div class="ai-row">
+        <label class="sr-only" for="aiKey">Gemini API key</label>
+        <input type="password" id="aiKey" placeholder="Paste your Gemini API key" autocomplete="off" spellcheck="false">
+        <button class="btn" id="aiSave">Connect</button>
+        <button class="btn ghost" id="aiOff">Turn off</button>
+      </div>
+      <div class="ai-row">
+        <label class="sr-only" for="aiModel">Model</label>
+        <select id="aiModel" disabled><option>Connect to load models</option></select>
+      </div>
+      <label><input type="checkbox" id="aiRemember"> Remember key on this device</label>
+      <div class="ai-status" id="aiStatus" aria-live="polite"></div>
+    </div>
+  </details>
+</div>
+
+<div class="progress" aria-hidden="true"><span id="p1"></span><span id="p2"></span><span id="p3"></span></div>
+
+<main>
+  <!-- 1. MOOD CHECK-IN -->
+  <section id="s1" aria-labelledby="t1">
+    <span class="step">Step 1 of 3</span>
+    <h2 id="t1">How are you feeling right now?</h2>
+    <p class="note">There's no wrong answer here. Choose the one closest to how you feel today.</p>
+    <div class="mood-row" id="moodRow" role="group" aria-label="Choose your mood"></div>
+    <div class="current-mood" id="currentMood" aria-live="polite"></div>
+  </section>
+
+  <!-- 2. PROBLEM SHARING -->
+  <section id="s2" aria-labelledby="t2" hidden>
+    <span class="step">Step 2 of 3</span>
+    <h2 id="t2">What's been weighing on you?</h2>
+    <p class="note">Pick something from the list, or write it in your own words — whatever feels easier.</p>
+    <div class="chip-row" id="chipRow" role="group" aria-label="Common problems"></div>
+    <label class="lbl" for="freeText">Or in your own words:</label>
+    <textarea id="freeText" placeholder="e.g. I can't sleep because my exam is tomorrow and I feel completely overwhelmed…"></textarea>
+  </section>
+
+  <!-- 3. CALM SUPPORT -->
+  <section id="s3" aria-labelledby="t3" hidden>
+    <span class="step">Step 3 of 3</span>
+    <h2 id="t3">Your calm support 🌿</h2>
+    <p class="note" id="supportHead"></p>
+
+    <div class="crisis" id="crisis" role="alert" hidden>
+      <h3>You don't have to carry this alone</h3>
+      <p>It sounds like things are really hard right now. Please reach out to someone who can talk with you:</p>
+      <ul>
+        <li>Befrienders KL (24 hours): <a href="tel:+60376272929">03-7627 2929</a></li>
+        <li>Talian HEAL (Ministry of Health): <a href="tel:15555">15555</a></li>
+        <li>If you're in immediate danger, call <a href="tel:999">999</a></li>
+      </ul>
+    </div>
+
+    <div class="reply" id="reply" aria-live="polite"></div>
+    <p class="reply-meta" id="replyMeta"></p>
+
+    <div class="ex-grid">
+      <div class="ex-card">
+        <h3>🫁 Breathing exercise</h3>
+        <p>Breathe in, hold, breathe out: <span class="pattern">4 · 2 · 4</span> seconds. Five rounds.</p>
+        <div class="breath-wrap"><div class="breath-circle" id="breathCircle" aria-hidden="true">Ready?</div></div>
+        <p class="breath-count" id="breathCount" aria-live="polite"></p>
+        <button class="btn" id="breathBtn">Start breathing</button>
+      </div>
+      <div class="ex-card">
+        <h3>🌱 Grounding step</h3>
+        <p class="ground-text" id="groundStep" aria-live="polite"></p>
+        <button class="btn ghost" id="groundBtn">Try another</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="help-bar">
+    <strong>Need to talk to someone now?</strong>
+    Befrienders KL <a href="tel:+60376272929">03-7627 2929</a> (24h) · Talian HEAL <a href="tel:15555">15555</a> · Emergency <a href="tel:999">999</a>
+  </div>
+</main>
+
+<footer>
+  Mood Mate offers gentle self-care ideas and is not a replacement for a counsellor, doctor or mental health professional.
+  Examples are inspired by everyday moments in Malaysia — from LRT commutes to mamak supper worries.
+  <span id="privacyNote">Nothing you type leaves this page.</span>
+</footer>
+
+<script>
+const MOODS = {
+  happy:    { emoji:"😊", label:"Happy",    greet:"Wonderful — let's keep this warm feeling going.",          close:"I'm glad there's some brightness in your day too — hold on to it." },
+  calm:     { emoji:"😌", label:"Calm",     greet:"Good — a calm start makes everything softer.",              close:"Your calm is still there underneath this. Come back to it whenever you need." },
+  sad:      { emoji:"😢", label:"Sad",      greet:"Thank you for telling me. Sadness deserves gentle care.",   close:"Go gently with yourself tonight." },
+  stressed: { emoji:"😩", label:"Stressed", greet:"That's a lot to carry. Let's lighten it together.",         close:"One thing at a time is enough." },
+  angry:    { emoji:"😤", label:"Angry",    greet:"Angry feelings are valid. Let's help them settle.",         close:"Your anger makes sense. Let it cool before you decide anything." },
+  tired:    { emoji:"😴", label:"Tired",    greet:"Being tired is your body speaking. Let's listen kindly.",   close:"Rest is allowed, even before everything is done." },
+};
+
+const PROBLEMS = [
+  { key:"work",    chip:"Work pressure" },
+  { key:"study",   chip:"Exams & study stress" },
+  { key:"family",  chip:"Family expectations" },
+  { key:"money",   chip:"Money worries" },
+  { key:"traffic", chip:"Traffic & commuting" },
+  { key:"lonely",  chip:"Feeling lonely" },
+];
+
+const REPLIES = {
+  work:    "Work pressure can feel like a wet KL Monday — heavy before it even starts. You don't have to solve everything today. Pick the one smallest task, do just that, and let that be enough for now.",
+  study:   "Exams feel enormous, but you only ever sit them one page at a time. Try 25 minutes of study, then a proper break with a drink. Rest is part of studying, not a reward you must earn.",
+  family:  "Family expectations can be loving and heavy at the same time — both things can be true. You're allowed to care about them and still choose your own pace. You don't owe anyone a perfect life story.",
+  money:   "Money worries sit quietly in the background and drain you. You're not behind in life; you're in a hard month, not a hard forever. Small, boring steps (a list, one bill, one call) count as progress.",
+  traffic: "Traffic jams steal hours and patience — especially when the rain joins in. You can't clear the road, but you can soften the ride: a song you love, slower breathing at the lights, and permission to arrive late and still be okay.",
+  lonely:  "Feeling lonely in a busy city is more common than it looks — crowds aren't the same as company. Tonight, one small connection is enough: a message to one person, or even a chat with the uncle at the mamak stall.",
+  none:    "Whenever you're ready, share what's on your mind — a word, a sentence, or just pick something above. I'll meet you there with something gentle.",
+};
+
+const GROUNDING = [
+  "Look around and quietly name 5 things you can see — a cup, a window, a chair. Naming them brings you back to now.",
+  "Press your feet flat into the floor. Feel the ground holding you. Take one slow breath while you do.",
+  "Hold something near you (a mug, your phone) and notice: is it warm, smooth, heavy? Stay with that for 10 seconds.",
+  "Listen for the softest sound in the room. Finding quiet sounds gently turns the volume of worry down.",
+  "Notice 3 things you can feel right now — your clothes, the chair, the air on your skin.",
+];
+
+const state = { mood:null, problem:null, freeText:"" };
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function reveal(id){
+  const s = $(id);
+  if (!s.hidden) return;
+  s.hidden = false;
+  s.classList.add("reveal");
+  s.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block:"start" });
+}
+
+function updateProgress(){
+  $("p1").classList.toggle("done", !!state.mood);
+  $("p2").classList.toggle("done", !!(state.problem || state.freeText.trim()));
+  $("p3").classList.toggle("done", !$("s3").hidden);
+}
+
+/* ---------- step 1: moods ---------- */
+function renderMoods(){
+  const row = $("moodRow");
+  row.innerHTML = "";
+  for (const [key, m] of Object.entries(MOODS)){
+    const b = document.createElement("button");
+    b.className = "mood-btn";
+    b.setAttribute("aria-pressed", String(key === state.mood));
+    b.innerHTML = '<span class="mood-emoji" aria-hidden="true">' + m.emoji + '</span><span>' + m.label + '</span>';
+    b.addEventListener("click", () => selectMood(key));
+    row.appendChild(b);
+  }
+  const m = MOODS[state.mood];
+  $("currentMood").textContent = m ? m.emoji + " " + m.label + " — " + m.greet : "";
+}
+
+function selectMood(key){
+  state.mood = key;
+  document.body.dataset.mood = key;
+  renderMoods();
+  newGrounding();
+  reveal("s2");
+  updateSupport();
+}
+
+/* ---------- step 2: problems ---------- */
+function renderChips(){
+  const row = $("chipRow");
+  row.innerHTML = "";
+  PROBLEMS.forEach(p => {
+    const b = document.createElement("button");
+    b.className = "chip";
+    b.setAttribute("aria-pressed", String(state.problem === p.key));
+    b.textContent = p.chip;
+    b.addEventListener("click", () => {
+      state.problem = (state.problem === p.key) ? null : p.key;   // tap again to unselect
+      state.freeText = "";
+      $("freeText").value = "";
+      renderChips();
+      newGrounding();
+      if (state.problem) reveal("s3");
+      updateSupport();
+    });
+    row.appendChild(b);
+  });
+}
+
+/* ---------- on-device language engine ---------- */
+const TOPIC_ENGINE = [
+  { key:"work",    words:["work","boss","office","meeting","deadline","presentation","salary review","ot","overtime","colleague","kpi","promotion","client","report","interview","resign","job","career","shift"] },
+  { key:"study",   words:["exam","study","studying","assignment","spm","stpm","university","uni","college","lecture","revision","thesis","grade","marks","cgpa","test","quiz","assignment due","akademik","tuition"] },
+  { key:"family",  words:["family","parents","mother","father","mom","dad","mak","abah","ibu","ayah","mama","papa","siblings","brother","sister","relative","in-laws","in laws","marriage","children","kids","expectation"] },
+  { key:"money",   words:["money","debt","loan","bills","rent","ptptn","salary","payday","broke","expenses","save","saving","cost","price","budget","financial","finance","credit card","owe"] },
+  { key:"traffic", words:["traffic","jam","lrt","mrt","komuter","bus","commute","driving","grab","parking","toll","road","train","late because","highway"] },
+  { key:"lonely",  words:["lonely","alone","no friends","isolated","nobody","ignored","left out","invisible","homesick","far from home","miss home","no one"] },
+  { key:"health",  words:["sick","ill","pain","headache","migraine","fever","hospital","clinic","doctor","body ache","insomnia","can't sleep","cough","flu","covid","tired body","exhausted body"] },
+  { key:"relation",words:["breakup","broke up","girlfriend","boyfriend","partner","crush","relationship","divorce","argument with my","fought with","friend fight","betrayed","ghosted","rejected","cheated"] },
+  { key:"future",  words:["future","purpose","lost","direction","meaning","who am i","behind in life","comparison","compare","failed","failure","not good enough","imposter","useless","hopeless"] },
+];
+
+const TOPIC_SUPPORT = {
+  work:    { mirror:"It sounds like work has been taking more from you than it gives back.", advice:"Try naming the single smallest task on your plate — just that one. Doing it is a real win, and everything else can wait its turn." },
+  study:   { mirror:"Studying under this much weight is genuinely hard, and it makes sense you feel worn.", advice:"Give yourself one focused 25-minute block, then a real break. You absorb more in short honest sprints than in long anxious hours." },
+  family:  { mirror:"Family expectations can be loving and heavy at the very same time — both can be true.", advice:"You're allowed to care deeply about them and still move at your own pace. Their hopes are information, not a verdict on you." },
+  money:   { mirror:"Money worries sit quietly in the background and drain everything else.", advice:"Tonight, just write down what's due and when — nothing more. A clear list turns a fog of dread into a set of small, doable steps." },
+  traffic: { mirror:"Being stuck in motion but going nowhere is its own special kind of frustration.", advice:"You can't clear the road, but you can claim the time back: one song you love, slow breaths at the lights, permission to arrive late and still be okay." },
+  lonely:  { mirror:"Feeling alone — especially in a busy place — hurts in a quiet, persistent way.", advice:"One small connection tonight is enough: a message to one person, or even a short chat with the uncle at the mamak stall. Crowds aren't company, but one voice can be." },
+  health:  { mirror:"When your body isn't okay, everything else gets heavier too.", advice:"Please treat rest as the task itself, not a reward. Water, a proper meal if you can, and sleep before you solve anything else." },
+  relation:{ mirror:"When someone close to you is the source of the hurt, it cuts deeper than most things.", advice:"Your feelings are valid even if the situation stays unresolved tonight. Write down what you'd want to say — unsent is fine — and let the paper hold some of it for you." },
+  future:  { mirror:"Feeling lost about where you're heading can make every day feel like fog.", advice:"You're not behind — you're in a chapter without a map, which is uncomfortable but not failure. Try one tiny thing this week that's purely yours, and let it remind you that you can still move." },
+};
+
+const GENERIC_SUPPORT = {
+  mirror:"Thank you for putting that into words — naming it already takes courage.",
+  advice:"Whatever this is, it doesn't have to be solved tonight. Let's just make this moment a little lighter, one breath at a time.",
+};
+
+const CRISIS_WORDS = ["give up","hopeless","can't take","can't go on","end it","end my life","kill myself","suicide","suicidal","want to die","don't want to live","hurt myself","self harm","self-harm","no reason to live","better off without me","unbearable"];
+
+function matchesWord(text, word){
+  // word-boundary match so "ill" doesn't fire inside "will"; apostrophe optional
+  const esc = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/'/g, "['’]?");
+  return new RegExp("(^|[^a-z])" + esc + "($|[^a-z])", "i").test(text);
+}
+
+function analyzeText(text){
+  const t = text.toLowerCase();
+  let best = null, bestHits = 0;
+  for (const topic of TOPIC_ENGINE){
+    const hits = topic.words.filter(w => matchesWord(t, w)).length;
+    if (hits > bestHits){ best = topic.key; bestHits = hits; }
+  }
+  const intensityWords = ["so much","can't","always","never","every day","everyday","too long","exhausted","drained","overwhelm","overwhelmed","breaking","worst","hate","crying","cried","scared","afraid","panic","anxious","stuck","helpless"];
+  const intensityHits = intensityWords.filter(w => matchesWord(t, w)).length;
+  const shouting = text === text.toUpperCase() && /[A-Z]{4,}/.test(text);
+  const intensity = Math.min(3, intensityHits + (shouting ? 1 : 0));
+  const urgentWords = ["tomorrow","tonight","today","now","soon","next week","deadline","due","exam is","interview","presentation"];
+  const urgent = urgentWords.some(w => matchesWord(t, w));
+  const crisis = CRISIS_WORDS.some(w => matchesWord(t, w));
+  return { topic: best, intensity, urgent, crisis };
+}
+
+function generatePersonalReply(text, analysis){
+  const { topic, intensity, urgent } = analysis;
+  const sup = topic ? TOPIC_SUPPORT[topic] : GENERIC_SUPPORT;
+  const snippet = text.trim().replace(/\s+/g, " ");
+  const short = snippet.length > 90 ? snippet.slice(0, 87).trimEnd() + "…" : snippet;
+  const openers = [
+    "You wrote: “" + short + "” — and I hear how much that's sitting on you.",
+    "Reading your words — “" + short + "” — I want you to know this space is for exactly this.",
+  ];
+  const opener = openers[snippet.length % openers.length];   // stable, not random
+
+  let body = sup.mirror;
+  if (intensity >= 2)      body += " What you're carrying sounds genuinely heavy right now, and it makes complete sense that it feels this way.";
+  else if (intensity === 1) body += " Even the smaller-sounding things deserve care, and this one does too.";
+  body += urgent ? " Since something is coming up soon, keep today's goal tiny: " + sup.advice : " " + sup.advice;
+
+  const close = state.mood ? " " + MOODS[state.mood].close : "";
+  return opener + " " + body + " Be as kind to yourself as you'd be to a friend." + close;
+}
+
+/* ---------- step 3: support ---------- */
+function updateSupport(){
+  if ($("s3").hidden){ updateProgress(); return; }
+  const m = MOODS[state.mood];
+  const feeling = m ? "your " + m.label.toLowerCase() + " feeling" : "how you feel";
+  const head = $("supportHead"), reply = $("reply"), crisis = $("crisis");
+  const typed = state.freeText.trim();
+
+  let localReply;
+  if (typed){
+    const a = analyzeText(typed);
+    crisis.hidden = !a.crisis;   // crisis check always runs on-device
+    head.textContent = "Reading your own words, with " + feeling + " in mind:";
+    localReply = generatePersonalReply(typed, a);
+  } else if (state.problem){
+    crisis.hidden = true;
+    head.textContent = "Speaking to " + feeling + ":";
+    localReply = REPLIES[state.problem] + (m ? " " + m.close : "");
+  } else {
+    crisis.hidden = true;
+    head.textContent = "Your space is ready. Start whenever you like.";
+    reply.textContent = REPLIES.none;
+    $("replyMeta").textContent = "";
+    updateProgress();
+    return;
+  }
+  updateProgress();
+
+  if (AI.enabled()) aiReply(localReply, !crisis.hidden);
+  else { reply.textContent = localReply; $("replyMeta").textContent = ""; }
+}
+
+let typingTimer = null;
+$("freeText").addEventListener("input", e => {
+  state.freeText = e.target.value;
+  if (state.problem){ state.problem = null; renderChips(); }
+  clearTimeout(typingTimer);
+  typingTimer = setTimeout(() => {
+    if (state.freeText.trim()) reveal("s3");
+    updateSupport();
+  }, AI.enabled() ? 1200 : 600);   // wait a bit longer before calling the API
+});
+
+/* ---------- AI replies (Gemini API) ---------- */
+const API_BASE = "https://generativelanguage.googleapis.com/v1beta";
+const AI = {
+  key: "", model: "", models: [],
+  enabled(){ return !!(this.key && this.model); },
+};
+const replyCache = new Map();
+let aiController = null;
+
+function buildPrompt(crisisFlag){
+  const m = MOODS[state.mood];
+  const problem = PROBLEMS.find(p => p.key === state.problem);
+  return [
+    "You are Mood Mate, a warm, gentle wellbeing companion for young adults in Malaysia.",
+    "Write ONE short reply (3 to 5 sentences, under 90 words) in plain, simple English.",
+    "Reflect what the person feels, then give one small, practical step they can do today.",
+    "You may use light Malaysian everyday context where it fits naturally, but don't overdo it.",
+    "Do not diagnose, give medical advice, or mention being an AI. No lists, no headings, no markdown.",
+    crisisFlag
+      ? "The person may be in crisis. Be very gentle, tell them they don't have to face this alone, and encourage them to call Befrienders KL (03-7627 2929) or Talian HEAL (15555) now, or 999 if in danger."
+      : "If anything sounds like self-harm or danger, gently encourage them to call Befrienders KL (03-7627 2929).",
+    "",
+    "Their mood: " + (m ? m.label : "not given"),
+    problem ? "What's weighing on them: " + problem.chip : "",
+    state.freeText.trim() ? "In their own words: \"" + state.freeText.trim().slice(0, 1000) + "\"" : "",
+    "",
+    "Reply:",
+  ].filter(Boolean).join("\n");
+}
+
+function cleanText(t){
+  return t.replace(/\*\*|__|`|^#+\s*/gm, "").replace(/\s+\n/g, "\n").trim();
+}
+
+async function aiReply(fallback, crisisFlag){
+  const reply = $("reply"), meta = $("replyMeta");
+  const cacheKey = [AI.model, state.mood, state.problem, state.freeText.trim()].join("|");
+  if (replyCache.has(cacheKey)){
+    reply.textContent = replyCache.get(cacheKey);
+    meta.textContent = "✨ Written by " + AI.model.replace("models/", "");
+    return;
+  }
+  if (aiController) aiController.abort();          // cancel older request
+  aiController = new AbortController();
+  const signal = aiController.signal;
+
+  reply.classList.add("loading");
+  reply.textContent = "Thinking of something gentle to say…";
+  meta.textContent = "";
+  const prompt = buildPrompt(crisisFlag);
+  // try the chosen model (with one retry), then backup models if it's busy
+  const queue = [AI.model, AI.model, ...backupModels()];
+  let lastErr = null;
+  try{
+    for (let i = 0; i < queue.length; i++){
+      const model = queue[i];
+      if (i > 0) await wait(i === 1 ? 1500 : 300, signal);
+      if (i >= 2) reply.textContent = "Still thinking… trying another model.";
+      try{
+        const text = await callModel(model, prompt, signal);
+        replyCache.set(cacheKey, text);
+        reply.textContent = text;
+        const name = model.replace("models/", "");
+        meta.textContent = "✨ Written by " + name +
+          (model !== AI.model ? " (" + AI.model.replace("models/", "") + " was busy)" : "");
+        return;
+      } catch (err){
+        if (err.name === "AbortError") throw err;
+        lastErr = err;
+        if (!err.busy) break;          // only retry/switch when the model is overloaded
+      }
+    }
+    throw lastErr;
+  } catch (err){
+    if (err.name === "AbortError") return;          // a newer request took over
+    reply.textContent = fallback;
+    meta.textContent = "Couldn't reach the AI (" + err.message + ") — showing the built-in reply.";
+  } finally {
+    if (!signal.aborted) reply.classList.remove("loading");
+  }
+}
+
+function wait(ms, signal){
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => { clearTimeout(t); reject(new DOMException("Aborted", "AbortError")); }, { once:true });
+  });
+}
+
+async function callModel(model, prompt, signal){
+  const res = await fetch(API_BASE + "/" + model + ":generateContent", {
+    method:"POST", signal,
+    headers:{ "Content-Type":"application/json", "x-goog-api-key": AI.key },
+    body: JSON.stringify({
+      contents:[{ role:"user", parts:[{ text: prompt }] }],
+      generationConfig:{ temperature:0.7, maxOutputTokens:400 },
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok){
+    const err = new Error(data.error?.message || ("HTTP " + res.status));
+    err.busy = res.status === 503 || res.status === 429 || res.status === 500 ||
+               /high demand|overloaded|unavailable|try again/i.test(err.message);
+    throw err;
+  }
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const text = cleanText(parts.filter(p => !p.thought).map(p => p.text || "").join(""));
+  if (!text){ const e = new Error("Empty reply"); e.busy = true; throw e; }
+  return text;
+}
+
+// up to 2 backups: fast Gemini models first, then other Gemma models
+function backupModels(){
+  const prefs = [/gemini-[\d.]+-flash-lite$/, /gemini-[\d.]+-flash$/, /gemma-4/, /gemma/];
+  const out = [];
+  for (const re of prefs){
+    for (const n of AI.models.slice().sort().reverse()){
+      if (re.test(n) && n !== AI.model && !out.includes(n) && !/preview|exp|tts|image|embed|audio|live/i.test(n)) out.push(n);
+    }
+  }
+  return out.slice(0, 2);
+}
+
+function setPrivacy(){
+  const on = AI.enabled();
+  $("aiBadge").textContent = on ? "On" : "Off";
+  $("aiBadge").classList.toggle("on", on);
+  $("privacyNote").textContent = on
+    ? "Smarter replies are on: what you pick and write is sent to Google's Gemini API to create the reply."
+    : "Nothing you type leaves this page.";
+  $("headPrivacy").textContent = on
+    ? "Smarter replies are on — your words are sent to Google to write the reply."
+    : "Nothing is saved — this stays on your screen.";
+}
+
+function store(k, v){ try{ v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); }catch(e){} }
+function load(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+
+async function connectAI(key){
+  const status = $("aiStatus"), sel = $("aiModel");
+  status.textContent = "Connecting…";
+  try{
+    const res = await fetch(API_BASE + "/models?pageSize=1000", { headers:{ "x-goog-api-key": key } });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error?.message || ("HTTP " + res.status));
+    const models = (data.models || [])
+      .filter(m => (m.supportedGenerationMethods || []).includes("generateContent"))
+      .map(m => m.name);
+    if (!models.length) throw new Error("No usable models on this key");
+    const gemma4 = models.filter(n => n.includes("gemma-4"));
+    const saved = load("moodmate_model");
+    const pick = (saved && models.includes(saved)) ? saved
+               : gemma4.length ? gemma4.sort().at(-1)
+               : models.find(n => n.includes("gemma")) || models[0];
+    sel.innerHTML = "";
+    [...gemma4, ...models.filter(n => !gemma4.includes(n))].forEach(n => {
+      const o = document.createElement("option");
+      o.value = n; o.textContent = n.replace("models/", "");
+      sel.appendChild(o);
+    });
+    sel.value = pick; sel.disabled = false;
+    AI.key = key; AI.model = pick; AI.models = models;
+    if ($("aiRemember").checked) store("moodmate_key", key);
+    status.textContent = "Connected ✓ Using " + pick.replace("models/", "") +
+      (gemma4.length ? "" : " (no Gemma 4 model found on this key)");
+  } catch (err){
+    AI.key = ""; AI.model = "";
+    status.textContent = "Couldn't connect: " + err.message;
+  }
+  setPrivacy();
+  replyCache.clear();
+  updateSupport();
+}
+
+$("aiSave").addEventListener("click", () => {
+  const key = $("aiKey").value.trim();
+  if (!key){ $("aiStatus").textContent = "Paste a key first."; return; }
+  connectAI(key);
+});
+$("aiOff").addEventListener("click", () => {
+  if (aiController) aiController.abort();
+  $("reply").classList.remove("loading");
+  AI.key = ""; AI.model = "";
+  $("aiKey").value = "";
+  store("moodmate_key", null);
+  $("aiModel").innerHTML = "<option>Connect to load models</option>";
+  $("aiModel").disabled = true;
+  $("aiStatus").textContent = "Turned off. Replies are back to on-device only.";
+  setPrivacy();
+  updateSupport();
+});
+$("aiModel").addEventListener("change", e => {
+  AI.model = e.target.value;
+  store("moodmate_model", AI.model);
+  $("aiStatus").textContent = "Using " + AI.model.replace("models/", "");
+  updateSupport();
+});
+$("aiRemember").addEventListener("change", e => {
+  if (e.target.checked && AI.key) store("moodmate_key", AI.key);
+  if (!e.target.checked) store("moodmate_key", null);
+});
+
+/* ---------- grounding ---------- */
+let groundIndex = Math.floor(Math.random() * GROUNDING.length);
+function showGrounding(){ $("groundStep").textContent = GROUNDING[groundIndex]; }
+function newGrounding(){ groundIndex = (groundIndex + 1) % GROUNDING.length; showGrounding(); }
+$("groundBtn").addEventListener("click", newGrounding);
+
+/* ---------- breathing ---------- */
+const circle = $("breathCircle"), breathBtn = $("breathBtn"), breathCount = $("breathCount");
+const PHASES = [
+  { text:"Breathe in…",  ms:4000, inhale:true  },
+  { text:"Hold…",        ms:2000, inhale:true  },
+  { text:"Breathe out…", ms:4000, inhale:false },
+];
+const ROUNDS = 5;
+let breathTimers = [];
+let breathing = false;
+
+function clearBreathTimers(){ breathTimers.forEach(clearTimeout); breathTimers = []; }
+
+function startBreath(){
+  clearBreathTimers();
+  breathing = true;
+  breathBtn.textContent = "Stop";
+  let t = 0;
+  for (let r = 1; r <= ROUNDS; r++){
+    PHASES.forEach((p, i) => {
+      breathTimers.push(setTimeout(() => {
+        circle.textContent = p.text;
+        circle.classList.toggle("inhale", p.inhale);
+        breathCount.textContent = (i === 0 ? "Breath " + r + " of " + ROUNDS + " — " : "") + p.text.replace("…", "");
+      }, t));
+      t += p.ms;
+    });
+  }
+  breathTimers.push(setTimeout(() => {
+    resetBreath("Well done 🌿");
+    breathCount.textContent = "Five calm breaths done. Notice how you feel.";
+  }, t));
+}
+
+function resetBreath(label){
+  clearBreathTimers();
+  breathing = false;
+  circle.classList.remove("inhale");
+  circle.textContent = label || "Ready?";
+  breathBtn.textContent = "Start breathing";
+}
+
+breathBtn.addEventListener("click", () => {
+  if (breathing){ resetBreath(); breathCount.textContent = ""; }
+  else startBreath();
+});
+
+/* ---------- high contrast ---------- */
+const hcToggle = $("hcToggle");
+hcToggle.addEventListener("click", () => {
+  const on = document.body.dataset.hc !== "on";
+  document.body.dataset.hc = on ? "on" : "off";
+  hcToggle.setAttribute("aria-pressed", String(on));
+});
+
+/* ---------- initial render: starts empty ---------- */
+$("freeText").value = "";
+renderMoods();
+renderChips();
+showGrounding();
+updateProgress();
+setPrivacy();
+const savedKey = load("moodmate_key");
+if (savedKey){ $("aiRemember").checked = true; $("aiKey").value = savedKey; connectAI(savedKey); }
+</script>
+</body>
+</html>
